@@ -20,7 +20,7 @@ from .const import (
     COMBUSTION_MANUFACTURER_ID,
     PROBE_STATUS_CHARACTERISTIC,
 )
-from .cpt_lib import BatteryStatus, CptAdvertisement, CptAdvertisingData, Mode
+from .cpt_lib import BatteryStatus, CptAdvertisingData, Mode
 from .sensor_definitions import (
     BATTERY_STATUS,
     INSTANT_READ_TEMP,
@@ -33,51 +33,49 @@ from .sensor_definitions import (
 _LOGGER = logging.getLogger(__name__)
 
 
-def _get_battery_status_text(advertising_data: CptAdvertisingData) -> str:
-    """Get the battery status."""
-    battery_status = advertising_data.batery_status
-    if battery_status == BatteryStatus.OK:
-        return "OK"
-    if battery_status == BatteryStatus.LOW:
-        return "Low"
-    return "Unknown"
-
-
-def get_data_from_advertisement(
-    parsed_data: CptAdvertisement,
-) -> dict[str, (str | float)]:
-    """Turn an advertisements into data to send to the sensor entities."""
-    advertising_data = parsed_data.advertising_data
-    data: dict[str, (str | float)] = {}
-
-    # Mode
-    if advertising_data.mode == Mode.INSTANT_READ:
-        data[INSTANT_READ_TEMP.key] = advertising_data.raw_temperatures.t1
-    else:
-        # Raw Temperatures
-        for entity in RAW_TEMP_ENTITIES:
-            temp_attribute = entity.key.replace("_temperature", "")
-            data[entity.key] = getattr(
-                advertising_data.raw_temperatures, temp_attribute
-            )
-
-        # Virtual Core
-        data[VIRTUAL_CORE.key] = advertising_data.virtual_sensors.core
-
-        # Virtual Ambient
-        data[VIRTUAL_AMBIENT.key] = advertising_data.virtual_sensors.ambient
-
-        # Virtual Surface
-        data[VIRTUAL_SURFACE.key] = advertising_data.virtual_sensors.surface
-
-    # Battery Status
-    data[BATTERY_STATUS.key] = _get_battery_status_text(advertising_data)
-
-    return data
-
-
 class CPTBluetoothCoordinator(DataUpdateCoordinator):
     """Class to coordinate data updates from the CPT."""
+
+    def _get_battery_status_text(self, advertising_data: CptAdvertisingData) -> str:
+        """Get the battery status."""
+        battery_status = advertising_data.battery_status
+        if battery_status == BatteryStatus.OK:
+            return "OK"
+        if battery_status == BatteryStatus.LOW:
+            return "Low"
+        return "Unknown"
+
+    def _get_data_from_advertisement(
+        self,
+        advertising_data: CptAdvertisingData,
+    ) -> dict[str, (str | float)]:
+        """Turn an advertisements into data to send to the sensor entities."""
+        data: dict[str, (str | float)] = {}
+
+        # Mode
+        if advertising_data.mode == Mode.INSTANT_READ:
+            data[INSTANT_READ_TEMP.key] = advertising_data.raw_temperatures.t1
+        else:
+            # Raw Temperatures
+            for entity in RAW_TEMP_ENTITIES:
+                temp_attribute = entity.key.replace("_temperature", "")
+                data[entity.key] = getattr(
+                    advertising_data.raw_temperatures, temp_attribute
+                )
+
+            # Virtual Core
+            data[VIRTUAL_CORE.key] = advertising_data.virtual_sensors.core
+
+            # Virtual Ambient
+            data[VIRTUAL_AMBIENT.key] = advertising_data.virtual_sensors.ambient
+
+            # Virtual Surface
+            data[VIRTUAL_SURFACE.key] = advertising_data.virtual_sensors.surface
+
+        # Battery Status
+        data[BATTERY_STATUS.key] = self._get_battery_status_text(advertising_data)
+
+        return data
 
     created: set[PassiveBluetoothEntityKey] = set()
 
@@ -89,6 +87,12 @@ class CPTBluetoothCoordinator(DataUpdateCoordinator):
             name=COMBUSTION_INC,
         )
         self.is_subscribed_to_notifications = False
+        self._maybe_client: None | BleakClient = None
+
+    def maybe_disconnect_bt_client(self):
+        """Disconnect the active client if there is one."""
+        if self._maybe_client is not None and self._maybe_client.is_connected:
+            self._maybe_client.disconnect()
 
     async def _maybe_subscribe_to_notifications(
         self, service_info: BluetoothServiceInfoBleak
@@ -123,21 +127,20 @@ class CPTBluetoothCoordinator(DataUpdateCoordinator):
     @callback
     def async_process_advertisement(
         self, service_info: BluetoothServiceInfoBleak, change: bluetooth.BluetoothChange
-    ) -> bool:
+    ) -> None:
         """Turn an advertisement into parsed CPT data."""
         advertisement = self._extract_advertisement(service_info)
-        data = get_data_from_advertisement(advertisement)
+        data = self._get_data_from_advertisement(advertisement)
         self.async_set_updated_data(data)
         self.hass.loop.create_task(self._maybe_subscribe_to_notifications(service_info))
-        return False
 
     def _extract_advertisement(
         self, service_info: BluetoothServiceInfoBleak
-    ) -> CptAdvertisement:
+    ) -> CptAdvertisingData:
         raw_advertisement_data = service_info.advertisement.manufacturer_data.get(
             COMBUSTION_MANUFACTURER_ID
         )
         if raw_advertisement_data is None:
             raise (ValueError("Invalid manufacturer data"))
         parsed = CptAdvertisingData(raw_advertisement_data)
-        return CptAdvertisement(parsed, service_info.address)
+        return parsed

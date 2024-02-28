@@ -1,11 +1,8 @@
 """Define the sensors for the CPT integration."""
 import logging
 
-from coordinator import CPTBluetoothCoordinator
-import voluptuous as vol
-
 from homeassistant.components import bluetooth
-from homeassistant.components.sensor import PLATFORM_SCHEMA, SensorEntity
+from homeassistant.components.sensor import SensorEntity
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import (
     ATTR_IDENTIFIERS,
@@ -16,12 +13,12 @@ from homeassistant.const import (
 )
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers import device_registry as dr
-import homeassistant.helpers.config_validation as cv
 from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
-from .const import CONF_INCLUDE_PHYSICAL_SENSORS, CONF_INCLUDE_VIRTUAL_SENSORS, DOMAIN
+from .const import DOMAIN
+from .coordinator import CPTBluetoothCoordinator
 from .sensor_definitions import (
     BATTERY_STATUS,
     INSTANT_READ_TEMP,
@@ -30,13 +27,6 @@ from .sensor_definitions import (
     VIRTUAL_CORE,
     VIRTUAL_SURFACE,
     CombustionIncSensorEntityDescription,
-)
-
-PLATFORM_SCHEMA = PLATFORM_SCHEMA.extend(
-    {
-        vol.Required(CONF_INCLUDE_PHYSICAL_SENSORS, default=True): cv.boolean,
-        vol.Required(CONF_INCLUDE_VIRTUAL_SENSORS, default=True): cv.boolean,
-    }
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -70,25 +60,16 @@ async def async_setup_entry(
 
     device_registry.async_get_or_create(
         config_entry_id=entry.entry_id,
-        identifiers={(DOMAIN, serial)},
-        manufacturer=manufacturer,
-        name=device_name,
-        model=model,
+        identifiers=device[ATTR_IDENTIFIERS],
+        manufacturer=device[ATTR_MANUFACTURER],
+        name=device[ATTR_NAME],
+        model=device[ATTR_MODEL],
     )
 
     bluetooth_coordinator = CPTBluetoothCoordinator(hass)
+    hass.data[DOMAIN][entry.entry_id] = bluetooth_coordinator
 
-    sensor_descriptions = [
-        INSTANT_READ_TEMP,
-        BATTERY_STATUS,
-        VIRTUAL_AMBIENT,
-        VIRTUAL_CORE,
-        VIRTUAL_SURFACE,
-    ] + RAW_TEMP_ENTITIES
-    sensors = [
-        CPTSensor(device, entity_description=sensor, coordinator=bluetooth_coordinator)
-        for sensor in sensor_descriptions
-    ]
+    sensors = create_sensor_entities_for_device(device, bluetooth_coordinator)
     async_add_entities(sensors)
 
     entry.async_on_unload(
@@ -101,6 +82,24 @@ async def async_setup_entry(
     )
 
 
+def create_sensor_entities_for_device(
+    device: DeviceInfo, coordinator: CPTBluetoothCoordinator
+):
+    """Create sensor entities for the device."""
+    sensor_descriptions = [
+        INSTANT_READ_TEMP,
+        BATTERY_STATUS,
+        VIRTUAL_AMBIENT,
+        VIRTUAL_CORE,
+        VIRTUAL_SURFACE,
+    ] + RAW_TEMP_ENTITIES
+    sensors = [
+        CPTSensor(device, entity_description=sensor, coordinator=coordinator)
+        for sensor in sensor_descriptions
+    ]
+    return sensors
+
+
 class CPTSensor(SensorEntity, CoordinatorEntity):
     """CPT Sensor."""
 
@@ -108,7 +107,7 @@ class CPTSensor(SensorEntity, CoordinatorEntity):
         self,
         device: DeviceInfo,
         entity_description: CombustionIncSensorEntityDescription,
-        coordinator: CoordinatorEntity,
+        coordinator: CPTBluetoothCoordinator,
     ) -> None:
         """Initialize the sensor."""
         super().__init__(coordinator)

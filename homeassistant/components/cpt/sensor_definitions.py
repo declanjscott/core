@@ -17,6 +17,7 @@ class CombustionIncSensorEntityDescription(SensorEntityDescription):
     # Restrict the type to satisfy the type checker and catch attempts
     # to use UNDEFINED in the entity descriptions.
     name: str
+    suggested_display_precision: int = 1
 
 
 RAW_TEMP_ENTITIES = [
@@ -26,6 +27,7 @@ RAW_TEMP_ENTITIES = [
         device_class=SensorDeviceClass.TEMPERATURE,
         native_unit_of_measurement=UnitOfTemperature.CELSIUS,
         state_class=SensorStateClass.MEASUREMENT,
+        icon=f"mdi:numeric-{i}",
     )
     for i in range(1, 8)
 ]
@@ -35,6 +37,7 @@ BATTERY_STATUS = CombustionIncSensorEntityDescription(
     name="Battery Status",
     device_class=SensorDeviceClass.ENUM,
     options=["OK", "Low", "Unknown"],
+    icon="mdi:battery",
 )
 
 VIRTUAL_CORE = CombustionIncSensorEntityDescription(
@@ -43,6 +46,7 @@ VIRTUAL_CORE = CombustionIncSensorEntityDescription(
     device_class=SensorDeviceClass.TEMPERATURE,
     native_unit_of_measurement=UnitOfTemperature.CELSIUS,
     state_class=SensorStateClass.MEASUREMENT,
+    icon="mdi:thermometer-probe",
 )
 
 VIRTUAL_SURFACE = CombustionIncSensorEntityDescription(
@@ -51,6 +55,7 @@ VIRTUAL_SURFACE = CombustionIncSensorEntityDescription(
     device_class=SensorDeviceClass.TEMPERATURE,
     native_unit_of_measurement=UnitOfTemperature.CELSIUS,
     state_class=SensorStateClass.MEASUREMENT,
+    icon="mdi:thermometer-probe",
 )
 
 VIRTUAL_AMBIENT = CombustionIncSensorEntityDescription(
@@ -59,6 +64,7 @@ VIRTUAL_AMBIENT = CombustionIncSensorEntityDescription(
     device_class=SensorDeviceClass.TEMPERATURE,
     native_unit_of_measurement=UnitOfTemperature.CELSIUS,
     state_class=SensorStateClass.MEASUREMENT,
+    icon="mdi:thermometer-probe",
 )
 
 INSTANT_READ_TEMP = CombustionIncSensorEntityDescription(
@@ -67,4 +73,5 @@ INSTANT_READ_TEMP = CombustionIncSensorEntityDescription(
     device_class=SensorDeviceClass.TEMPERATURE,
     native_unit_of_measurement=UnitOfTemperature.CELSIUS,
     state_class=SensorStateClass.MEASUREMENT,
+    icon="mdi:thermometer-probe",
 )
