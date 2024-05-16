@@ -45,7 +45,7 @@ async def async_setup_entry(
     model = entry.data.get(ATTR_MODEL)
 
     if serial is None:
-        raise ValueError("Serial number is required")
+        raise ValueError("No serial number set for device.")
     device = DeviceInfo(
         {
             ATTR_NAME: device_name,

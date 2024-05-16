@@ -39,23 +39,11 @@ class Discovery:
     device: CPTDevice
 
 
-def _get_device_title(device: CPTDevice) -> str:
-    return f"{device.product_type} {device.serial}"
-
-
-def _get_device_type_with_colour(device: CPTDevice) -> str:
-    if device.product_type == ProductType.PREDICTIVE_PROBE:
-        return f"{device.colour} {device.product_type}"
-    if device.product_type == ProductType.KITCHEN_TIMER:
-        return str(device.product_type)
-    return "Unknown Device"
-
-
 class CombustionIncConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
-    """Example config flow."""
+    """Config flow for the CPT integration."""
 
     # The schema version of the entries that it creates
-    # Home Assistant will call your migrate method if the version changes
+    # Home Assistant will call this migrate method if the version changes
     VERSION = 1
     MINOR_VERSION = 1
 
@@ -66,7 +54,7 @@ class CombustionIncConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     async def async_step_bluetooth(
         self, discovery_info: BluetoothServiceInfo
     ) -> FlowResult:
-        """Handle the bluetooth discovery step."""
+        """Thermometer has been discovered, we'll set it up."""
         manufacturer_data = discovery_info.manufacturer_data.get(
             COMBUSTION_MANUFACTURER_ID
         )
@@ -74,7 +62,9 @@ class CombustionIncConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             raise ValueError("Invalid manufacturer data")
         advertising_data: CptAdvertisingData = CptAdvertisingData(manufacturer_data)
         if advertising_data.device.product_type != ProductType.PREDICTIVE_PROBE:
-            return self.async_abort(reason="not_supported")
+            return self.async_abort(
+                reason=f"Product type {advertising_data.device.product_type} not supported."
+            )
 
         await self.async_set_unique_id(advertising_data.device.serial)
         self._abort_if_unique_id_configured()
@@ -186,3 +176,15 @@ class OptionsFlowHandler(config_entries.OptionsFlow):
             step_id="init",
             data_schema=options_schema,
         )
+
+
+def _get_device_title(device: CPTDevice) -> str:
+    return f"{device.product_type} {device.serial}"
+
+
+def _get_device_type_with_colour(device: CPTDevice) -> str:
+    if device.product_type == ProductType.PREDICTIVE_PROBE:
+        return f"{device.colour} {device.product_type}"
+    if device.product_type == ProductType.KITCHEN_TIMER:
+        return str(device.product_type)
+    return "Unknown Device"

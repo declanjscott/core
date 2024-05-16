@@ -1,5 +1,4 @@
 """Coordinates communication with the CPT therometer."""
-import asyncio
 import logging
 
 from bleak import BleakClient, BleakGATTCharacteristic
@@ -8,9 +7,6 @@ from homeassistant.components import bluetooth
 from homeassistant.components.bluetooth import (
     BluetoothServiceInfoBleak,
     async_ble_device_from_address,
-)
-from homeassistant.components.bluetooth.passive_update_processor import (
-    PassiveBluetoothEntityKey,
 )
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator
@@ -35,6 +31,16 @@ _LOGGER = logging.getLogger(__name__)
 
 class CPTBluetoothCoordinator(DataUpdateCoordinator):
     """Class to coordinate data updates from the CPT."""
+
+    def __init__(self, hass: HomeAssistant) -> None:
+        """Initialize the coordinator."""
+        super().__init__(
+            hass,
+            _LOGGER,
+            name=COMBUSTION_INC,
+        )
+        self.is_subscribed_to_notifications = False
+        self._maybe_client: None | BleakClient = None
 
     def _get_battery_status_text(self, advertising_data: CptAdvertisingData) -> str:
         """Get the battery status."""
@@ -77,18 +83,6 @@ class CPTBluetoothCoordinator(DataUpdateCoordinator):
 
         return data
 
-    created: set[PassiveBluetoothEntityKey] = set()
-
-    def __init__(self, hass: HomeAssistant) -> None:
-        """Initialize the coordinator."""
-        super().__init__(
-            hass,
-            _LOGGER,
-            name=COMBUSTION_INC,
-        )
-        self.is_subscribed_to_notifications = False
-        self._maybe_client: None | BleakClient = None
-
     def maybe_disconnect_bt_client(self):
         """Disconnect the active client if there is one."""
         if self._maybe_client is not None and self._maybe_client.is_connected:
@@ -118,11 +112,9 @@ class CPTBluetoothCoordinator(DataUpdateCoordinator):
         await client.connect()
 
         def notification_callback(sender: BleakGATTCharacteristic, data: bytearray):
-            _LOGGER.info("Got notification from out sensor!")
+            _LOGGER.info("Got notification from connected sensor!")
 
         await client.start_notify(PROBE_STATUS_CHARACTERISTIC, notification_callback)
-        await asyncio.sleep(100.0)  # or however long you want to wait
-        # await client.stop_notify(service_uuid)
 
     @callback
     def async_process_advertisement(

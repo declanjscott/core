@@ -8,14 +8,13 @@ from homeassistant.components.sensor import (
 )
 from homeassistant.const import UnitOfTemperature
 
+from .const import BATTERY_STATE_LOW, BATTERY_STATE_OK, BATTERY_STATE_UNKNOWN
+
 
 @dataclass(frozen=True)
 class CombustionIncSensorEntityDescription(SensorEntityDescription):
     """Class to describe a CPT sensor entity."""
 
-    # PassiveBluetoothDataUpdate does not support UNDEFINED
-    # Restrict the type to satisfy the type checker and catch attempts
-    # to use UNDEFINED in the entity descriptions.
     name: str
     suggested_display_precision: int = 1
 
@@ -36,7 +35,7 @@ BATTERY_STATUS = CombustionIncSensorEntityDescription(
     key="battery_status",
     name="Battery Status",
     device_class=SensorDeviceClass.ENUM,
-    options=["OK", "Low", "Unknown"],
+    options=[BATTERY_STATE_OK, BATTERY_STATE_LOW, BATTERY_STATE_UNKNOWN],
     icon="mdi:battery",
 )
 
