@@ -6,9 +6,20 @@ from homeassistant.components.sensor import (
     SensorEntityDescription,
     SensorStateClass,
 )
-from homeassistant.const import UnitOfTemperature
+from homeassistant.const import PERCENTAGE, UnitOfTemperature, UnitOfTime
 
-from .const import BATTERY_STATE_LOW, BATTERY_STATE_OK, BATTERY_STATE_UNKNOWN
+from .const import (
+    BATTERY_STATE_LOW,
+    BATTERY_STATE_OK,
+    BATTERY_STATE_UNKNOWN,
+    PREDICTION_STATE_INSERTED,
+    PREDICTION_STATE_NOT_INSERTED,
+    PREDICTION_STATE_NOT_PREDICTING,
+    PREDICTION_STATE_OTHER,
+    PREDICTION_STATE_PENDING,
+    PREDICTION_STATE_PREDICTING,
+    PREDICTION_STATE_READY,
+)
 
 
 @dataclass(frozen=True)
@@ -73,4 +84,49 @@ INSTANT_READ_TEMP = CombustionIncSensorEntityDescription(
     native_unit_of_measurement=UnitOfTemperature.CELSIUS,
     state_class=SensorStateClass.MEASUREMENT,
     icon="mdi:thermometer-probe",
+)
+
+
+COOKING_TO_TEMP = CombustionIncSensorEntityDescription(
+    key="cooking_to_temp",
+    name="Cooking To",
+    device_class=SensorDeviceClass.TEMPERATURE,
+    native_unit_of_measurement=UnitOfTemperature.CELSIUS,
+    state_class=SensorStateClass.MEASUREMENT,
+    icon="mdi:thermometer-probe",
+)
+
+
+READY_IN_TIME = CombustionIncSensorEntityDescription(
+    key="ready_in_time",
+    name="Ready In",
+    device_class=SensorDeviceClass.DURATION,
+    native_unit_of_measurement=UnitOfTime.SECONDS,
+    state_class=SensorStateClass.MEASUREMENT,
+    icon="mdi:clock-time-eight-outline",
+)
+
+PERCENT_THROUGH_COOK = CombustionIncSensorEntityDescription(
+    key="percent_through_cook",
+    name="% Through Cook",
+    native_unit_of_measurement=PERCENTAGE,
+    state_class=SensorStateClass.MEASUREMENT,
+    icon="mdi:percent",
+)
+
+
+PREDICTION_STATUS = CombustionIncSensorEntityDescription(
+    key="prediction_status",
+    name="Prediction Status",
+    icon="mdi:brain",
+    device_class=SensorDeviceClass.ENUM,
+    options=[
+        PREDICTION_STATE_PREDICTING,
+        PREDICTION_STATE_NOT_INSERTED,
+        PREDICTION_STATE_PENDING,
+        PREDICTION_STATE_INSERTED,
+        PREDICTION_STATE_READY,
+        PREDICTION_STATE_NOT_PREDICTING,
+        PREDICTION_STATE_OTHER,
+    ],
 )

@@ -17,12 +17,16 @@ from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
-from .const import DOMAIN
+from .const import CONF_INCLUDE_PHYSICAL_SENSORS, CONF_INCLUDE_VIRTUAL_SENSORS, DOMAIN
 from .coordinator import CPTBluetoothCoordinator
 from .sensor_definitions import (
     BATTERY_STATUS,
+    COOKING_TO_TEMP,
     INSTANT_READ_TEMP,
+    PERCENT_THROUGH_COOK,
+    PREDICTION_STATUS,
     RAW_TEMP_ENTITIES,
+    READY_IN_TIME,
     VIRTUAL_AMBIENT,
     VIRTUAL_CORE,
     VIRTUAL_SURFACE,
@@ -32,13 +36,17 @@ from .sensor_definitions import (
 _LOGGER = logging.getLogger(__name__)
 
 
+async def options_update_listener(hass: HomeAssistant, entry: ConfigEntry):
+    """Handle updated user options."""
+    await hass.config_entries.async_reload(entry.entry_id)
+
+
 async def async_setup_entry(
     hass: HomeAssistant,
     entry: ConfigEntry,
     async_add_entities: AddEntitiesCallback,
 ) -> None:
     """Set up out device and its entities."""
-
     device_name = entry.data.get(ATTR_NAME)
     serial = entry.data.get(ATTR_SERIAL_NUMBER)
     manufacturer = entry.data.get(ATTR_MANUFACTURER)
@@ -69,7 +77,11 @@ async def async_setup_entry(
     bluetooth_coordinator = CPTBluetoothCoordinator(hass)
     hass.data[DOMAIN][entry.entry_id] = bluetooth_coordinator
 
-    sensors = create_sensor_entities_for_device(device, bluetooth_coordinator)
+    include_physical_sensors = entry.options[CONF_INCLUDE_PHYSICAL_SENSORS]
+    include_virtual_sensors = entry.options[CONF_INCLUDE_VIRTUAL_SENSORS]
+    sensors = create_sensor_entities_for_device(
+        device, bluetooth_coordinator, include_physical_sensors, include_virtual_sensors
+    )
     async_add_entities(sensors)
 
     entry.async_on_unload(
@@ -80,19 +92,34 @@ async def async_setup_entry(
             bluetooth.BluetoothScanningMode.PASSIVE,
         )
     )
+    entry.async_on_unload(entry.add_update_listener(options_update_listener))
 
 
 def create_sensor_entities_for_device(
-    device: DeviceInfo, coordinator: CPTBluetoothCoordinator
+    device: DeviceInfo,
+    coordinator: CPTBluetoothCoordinator,
+    include_physical_sensors: bool,
+    include_virtual_sensors: bool,
 ):
     """Create sensor entities for the device."""
     sensor_descriptions = [
         INSTANT_READ_TEMP,
         BATTERY_STATUS,
-        VIRTUAL_AMBIENT,
-        VIRTUAL_CORE,
-        VIRTUAL_SURFACE,
-    ] + RAW_TEMP_ENTITIES
+        COOKING_TO_TEMP,
+        READY_IN_TIME,
+        PERCENT_THROUGH_COOK,
+        PREDICTION_STATUS,
+    ]
+    if include_physical_sensors:
+        sensor_descriptions.extend(RAW_TEMP_ENTITIES)
+    if include_virtual_sensors:
+        sensor_descriptions.extend(
+            [
+                VIRTUAL_AMBIENT,
+                VIRTUAL_CORE,
+                VIRTUAL_SURFACE,
+            ]
+        )
     sensors = [
         CPTSensor(device, entity_description=sensor, coordinator=coordinator)
         for sensor in sensor_descriptions
