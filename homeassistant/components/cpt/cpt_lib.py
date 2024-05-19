@@ -1,4 +1,4 @@
-"""Library to parse payloads from CPT thermometers."""
+"""Library to connect to and parse payloads from CPT thermometers."""
 from collections.abc import Callable
 from enum import Enum
 
