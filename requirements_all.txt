@@ -665,6 +665,9 @@ connect-box==0.2.8
 # homeassistant.components.xiaomi_miio
 construct==2.10.68
 
+# homeassistant.components.combustion_inc
+cpt-python==0.0.2
+
 # homeassistant.components.utility_meter
 croniter==1.0.6
 

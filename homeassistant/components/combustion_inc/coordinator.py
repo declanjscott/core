@@ -1,5 +1,16 @@
-"""Coordinates communication with the CPT therometer."""
+"""Coordinates communication with the Combustion Inc therometer."""
 import logging
+
+from cpt_python import (
+    BatteryStatus,
+    CptAdvertisement,
+    CPTConnectionManager,
+    CptProbeStatus,
+    Mode,
+    PredictionMode,
+    PredictionState,
+    ProductType,
+)
 
 from homeassistant.components import bluetooth
 from homeassistant.components.bluetooth import (
@@ -18,16 +29,6 @@ from .const import (
     PREDICTION_STATE_PENDING,
     PREDICTION_STATE_PREDICTING,
     PREDICTION_STATE_READY,
-)
-from .cpt_lib import (
-    BatteryStatus,
-    CptAdvertisement,
-    CPTConnectionManager,
-    CptProbeStatus,
-    Mode,
-    PredictionMode,
-    PredictionState,
-    ProductType,
 )
 from .sensor_definitions import (
     BATTERY_STATUS,
@@ -142,13 +143,13 @@ class CPTBluetoothCoordinator(DataUpdateCoordinator):
 
         return data
 
-    async def maybe_disconnect_bt_client(self):
+    async def maybe_disconnect_bt_client(self) -> None:
         """Disconnect the active client if there is one."""
         await self.cpt_connection_manager.maybe_disconnect_from_client()
 
     async def _maybe_subscribe_to_notifications(
         self, service_info: BluetoothServiceInfoBleak
-    ):
+    ) -> None:
         if (
             self.cpt_connection_manager.is_subscribed_to_notifications
             or self.cpt_connection_manager.is_currently_subscribing
@@ -168,8 +169,9 @@ class CPTBluetoothCoordinator(DataUpdateCoordinator):
                 f"No connectable device found for {service_info.device.address}"
             )
 
-        def process_probe_status_notification(probe_status: CptProbeStatus):
-            return
+        def process_probe_status_notification(probe_status: CptProbeStatus) -> None:
+            sensor_updates = self._get_data_from_probe_status_notification(probe_status)
+            self.async_set_updated_data(sensor_updates)
 
         await self.cpt_connection_manager.maybe_subscribe_to_notifications(
             connectable_device, process_probe_status_notification

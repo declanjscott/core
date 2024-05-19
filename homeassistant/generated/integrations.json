@@ -946,6 +946,12 @@
       "integration_type": "hub",
       "config_flow": true
     },
+    "combustion_inc": {
+      "name": "Combustion Inc",
+      "integration_type": "hub",
+      "config_flow": true,
+      "iot_class": "local_push"
+    },
     "comed": {
       "name": "Commonwealth Edison (ComEd)",
       "integration_type": "virtual",
@@ -1008,12 +1014,6 @@
       "name": "Atlantic Cozytouch",
       "integration_type": "virtual",
       "supported_by": "overkiz"
-    },
-    "cpt": {
-      "name": "Combustion Pro Thermometer",
-      "integration_type": "hub",
-      "config_flow": true,
-      "iot_class": "local_push"
     },
     "cpuspeed": {
       "integration_type": "device",

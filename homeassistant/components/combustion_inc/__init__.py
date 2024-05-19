@@ -1,4 +1,4 @@
-"""The CPT integration."""
+"""The Combustion Inc integration."""
 
 import logging
 

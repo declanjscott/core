@@ -1,5 +1,5 @@
-"""Constants for the CPT integration."""
-DOMAIN = "cpt"
+"""Constants for the Combustion Inc integration."""
+DOMAIN = "combustion_inc"
 COMBUSTION_MANUFACTURER_ID = 2503
 COMBUSTION_INC = "Combustion Inc."
 

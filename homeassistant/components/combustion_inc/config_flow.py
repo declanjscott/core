@@ -1,10 +1,11 @@
-"""Defines a config flow for the CPT integration."""
+"""Defines a config flow for the Combustion Inc integration."""
 
 import asyncio
 import dataclasses
 import logging
 from typing import Any
 
+from cpt_python import CptAdvertisement, CPTDevice, ProductType
 import voluptuous as vol
 
 from homeassistant import config_entries
@@ -33,7 +34,6 @@ from .const import (
     CONF_INCLUDE_VIRTUAL_SENSORS,
     DOMAIN,
 )
-from .cpt_lib import CptAdvertisement, CPTDevice, ProductType
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -48,7 +48,7 @@ class Discovery:
 
 
 class CombustionIncConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
-    """Config flow for the CPT integration."""
+    """Config flow for the Combustion Inc integration."""
 
     # The schema version of the entries that it creates
     # Home Assistant will call this migrate method if the version changes
@@ -63,7 +63,9 @@ class CombustionIncConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         self._discovery_info: BluetoothServiceInfoBleak | None = None
         self._discovered_devices: dict[str, Discovery] = {}
 
-    def _handle_manual_device_discovery(self, service_info: BluetoothServiceInfoBleak):
+    def _handle_manual_device_discovery(
+        self, service_info: BluetoothServiceInfoBleak
+    ) -> bool:
         if service_info.manufacturer_id == COMBUSTION_MANUFACTURER_ID:
             if COMBUSTION_MANUFACTURER_ID not in service_info.manufacturer_data:
                 return False
@@ -187,7 +189,9 @@ class CombustionIncConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             },
         )
 
-    async def async_step_no_discovered_devices(self, user_input) -> FlowResult:
+    async def async_step_no_discovered_devices(
+        self, user_input: dict[str, Any]
+    ) -> FlowResult:
         """Shown when we don't discover any devices."""
         return self.async_abort(reason="no_devices_found")
 
@@ -225,7 +229,9 @@ class CombustionIncConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
         return await self._async_get_or_create_entry(user_input)
 
-    async def _async_get_or_create_entry(self, user_input) -> FlowResult:
+    async def _async_get_or_create_entry(
+        self, user_input: dict[str, Any]
+    ) -> FlowResult:
         if self._discovered_device is None:
             raise ValueError("No device discovered")
         data: dict[str, Any] = {}

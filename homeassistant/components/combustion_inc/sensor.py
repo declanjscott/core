@@ -36,7 +36,30 @@ from .sensor_definitions import (
 _LOGGER = logging.getLogger(__name__)
 
 
-async def options_update_listener(hass: HomeAssistant, entry: ConfigEntry):
+class CPTSensor(SensorEntity, CoordinatorEntity):
+    """CPT Sensor."""
+
+    def __init__(
+        self,
+        device: DeviceInfo,
+        entity_description: CombustionIncSensorEntityDescription,
+        coordinator: CPTBluetoothCoordinator,
+    ) -> None:
+        """Initialize the sensor."""
+        super().__init__(coordinator)
+        self._attr_device_info = device
+        self._attr_unique_id = f"{device[ATTR_IDENTIFIERS]}_{entity_description.key}"
+        self.entity_description = entity_description
+
+    @callback
+    def _handle_coordinator_update(self) -> None:
+        if self.entity_description.key not in self.coordinator.data:
+            return
+        self._attr_native_value = self.coordinator.data.get(self.entity_description.key)
+        self.async_write_ha_state()
+
+
+async def options_update_listener(hass: HomeAssistant, entry: ConfigEntry) -> None:
     """Handle updated user options."""
     await hass.config_entries.async_reload(entry.entry_id)
 
@@ -100,7 +123,7 @@ def create_sensor_entities_for_device(
     coordinator: CPTBluetoothCoordinator,
     include_physical_sensors: bool,
     include_virtual_sensors: bool,
-):
+) -> list[CPTSensor]:
     """Create sensor entities for the device."""
     sensor_descriptions = [
         INSTANT_READ_TEMP,
@@ -125,26 +148,3 @@ def create_sensor_entities_for_device(
         for sensor in sensor_descriptions
     ]
     return sensors
-
-
-class CPTSensor(SensorEntity, CoordinatorEntity):
-    """CPT Sensor."""
-
-    def __init__(
-        self,
-        device: DeviceInfo,
-        entity_description: CombustionIncSensorEntityDescription,
-        coordinator: CPTBluetoothCoordinator,
-    ) -> None:
-        """Initialize the sensor."""
-        super().__init__(coordinator)
-        self._attr_device_info = device
-        self._attr_unique_id = f"{device[ATTR_IDENTIFIERS]}_{entity_description.key}"
-        self.entity_description = entity_description
-
-    @callback
-    def _handle_coordinator_update(self) -> None:
-        if self.entity_description.key not in self.coordinator.data:
-            return
-        self._attr_native_value = self.coordinator.data.get(self.entity_description.key)
-        self.async_write_ha_state()
