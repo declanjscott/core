@@ -33,7 +33,7 @@ from .const import (
     CONF_INCLUDE_VIRTUAL_SENSORS,
     DOMAIN,
 )
-from .cpt_lib import CptAdvertisingData, CPTDevice, ProductType
+from .cpt_lib import CptAdvertisement, CPTDevice, ProductType
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -72,7 +72,7 @@ class CombustionIncConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             )
             if manufacturer_data is None:
                 return False
-            advertising_data: CptAdvertisingData = CptAdvertisingData(manufacturer_data)
+            advertising_data: CptAdvertisement = CptAdvertisement(manufacturer_data)
             if advertising_data.device.product_type != ProductType.PREDICTIVE_PROBE:
                 return False
             serial = advertising_data.device.serial
@@ -95,7 +95,7 @@ class CombustionIncConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         )
         if manufacturer_data is None:
             raise ValueError("Invalid manufacturer data")
-        advertising_data: CptAdvertisingData = CptAdvertisingData(manufacturer_data)
+        advertising_data: CptAdvertisement = CptAdvertisement(manufacturer_data)
         if advertising_data.device.product_type != ProductType.PREDICTIVE_PROBE:
             return self.async_abort(
                 reason=f"Product type {advertising_data.device.product_type} not supported."

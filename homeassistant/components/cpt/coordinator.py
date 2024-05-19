@@ -1,8 +1,6 @@
 """Coordinates communication with the CPT therometer."""
 import logging
 
-from bleak import BleakClient, BleakGATTCharacteristic
-
 from homeassistant.components import bluetooth
 from homeassistant.components.bluetooth import (
     BluetoothServiceInfoBleak,
@@ -13,7 +11,6 @@ from homeassistant.helpers.update_coordinator import DataUpdateCoordinator
 
 from .const import (
     COMBUSTION_INC,
-    COMBUSTION_MANUFACTURER_ID,
     PREDICTION_STATE_INSERTED,
     PREDICTION_STATE_NOT_INSERTED,
     PREDICTION_STATE_NOT_PREDICTING,
@@ -21,11 +18,11 @@ from .const import (
     PREDICTION_STATE_PENDING,
     PREDICTION_STATE_PREDICTING,
     PREDICTION_STATE_READY,
-    PROBE_STATUS_CHARACTERISTIC,
 )
 from .cpt_lib import (
     BatteryStatus,
-    CptAdvertisingData,
+    CptAdvertisement,
+    CPTConnectionManager,
     CptProbeStatus,
     Mode,
     PredictionMode,
@@ -51,11 +48,6 @@ _LOGGER = logging.getLogger(__name__)
 class CPTBluetoothCoordinator(DataUpdateCoordinator):
     """Class to coordinate data updates from the CPT."""
 
-    def _get_is_subscribed(self):
-        return self._maybe_client is not None and self._maybe_client.is_connected
-
-    is_subscribed_to_notifications = property(_get_is_subscribed)
-
     def __init__(self, hass: HomeAssistant) -> None:
         """Initialize the coordinator."""
         super().__init__(
@@ -63,10 +55,9 @@ class CPTBluetoothCoordinator(DataUpdateCoordinator):
             _LOGGER,
             name=COMBUSTION_INC,
         )
-        self._maybe_client: None | BleakClient = None
-        self.is_currently_subscribing = False
+        self.cpt_connection_manager = CPTConnectionManager()
 
-    def _get_battery_status_text(self, advertising_data: CptAdvertisingData) -> str:
+    def _get_battery_status_text(self, advertising_data: CptAdvertisement) -> str:
         """Get the battery status."""
         battery_status = advertising_data.battery_status
         if battery_status == BatteryStatus.OK:
@@ -119,9 +110,9 @@ class CPTBluetoothCoordinator(DataUpdateCoordinator):
             data[PREDICTION_STATUS.key] = PREDICTION_STATE_NOT_PREDICTING
         return data
 
-    def _get_data_from_advertisement(
+    def _convert_advertisement_to_sensor_updates(
         self,
-        advertising_data: CptAdvertisingData,
+        advertising_data: CptAdvertisement,
     ) -> dict[str, (str | float | None)]:
         """Turn an advertisement into data to send to the sensor entities."""
         data: dict[str, (str | float | None)] = {}
@@ -153,16 +144,16 @@ class CPTBluetoothCoordinator(DataUpdateCoordinator):
 
     async def maybe_disconnect_bt_client(self):
         """Disconnect the active client if there is one."""
-        if self._maybe_client is not None and self._maybe_client.is_connected:
-            await self._maybe_client.disconnect()
+        await self.cpt_connection_manager.maybe_disconnect_from_client()
 
     async def _maybe_subscribe_to_notifications(
         self, service_info: BluetoothServiceInfoBleak
     ):
-        if self.is_subscribed_to_notifications or self.is_currently_subscribing:
+        if (
+            self.cpt_connection_manager.is_subscribed_to_notifications
+            or self.cpt_connection_manager.is_currently_subscribing
+        ):
             return
-        self.is_currently_subscribing = True
-        _LOGGER.info("Subscribing to notifications")
         # exchange our passive device for a connectable one
         if service_info.connectable:
             connectable_device = service_info.device
@@ -176,49 +167,34 @@ class CPTBluetoothCoordinator(DataUpdateCoordinator):
             raise RuntimeError(
                 f"No connectable device found for {service_info.device.address}"
             )
-        self._maybe_client = BleakClient(connectable_device)
-        await self._maybe_client.connect()
 
-        def notification_callback(sender: BleakGATTCharacteristic, data: bytearray):
-            probe_status = CptProbeStatus(data)
-            data_from_probe_status = self._get_data_from_probe_status_notification(
-                probe_status
-            )
-            self.async_set_updated_data(data_from_probe_status)
+        def process_probe_status_notification(probe_status: CptProbeStatus):
+            return
 
-        await self._maybe_client.start_notify(
-            PROBE_STATUS_CHARACTERISTIC, notification_callback
+        await self.cpt_connection_manager.maybe_subscribe_to_notifications(
+            connectable_device, process_probe_status_notification
         )
-        self.is_currently_subscribing = False
 
     @callback
     def async_process_advertisement(
         self, service_info: BluetoothServiceInfoBleak, change: bluetooth.BluetoothChange
     ) -> None:
         """Turn an advertisement into parsed CPT data."""
-        advertisement = self._extract_advertisement(service_info)
+        advertisement = self.cpt_connection_manager.parse_raw_cpt_advertisement(
+            service_info.advertisement
+        )
         if advertisement.device.product_type != ProductType.PREDICTIVE_PROBE:
             _LOGGER.debug(
                 "Ignoring advertisement from device with product type %s",
                 advertisement.device.product_type,
             )
             return
-        data = self._get_data_from_advertisement(advertisement)
-        self.async_set_updated_data(data)
+        sensor_updates = self._convert_advertisement_to_sensor_updates(advertisement)
+        self.async_set_updated_data(sensor_updates)
+
         if service_info.connectable:
             self.hass.loop.create_task(
                 self._maybe_subscribe_to_notifications(service_info)
             )
         else:
             _LOGGER.info("Received a non-connectable probe advertisement")
-
-    def _extract_advertisement(
-        self, service_info: BluetoothServiceInfoBleak
-    ) -> CptAdvertisingData:
-        raw_advertisement_data = service_info.advertisement.manufacturer_data.get(
-            COMBUSTION_MANUFACTURER_ID
-        )
-        if raw_advertisement_data is None:
-            raise (ValueError("Invalid manufacturer data"))
-        parsed = CptAdvertisingData(raw_advertisement_data)
-        return parsed

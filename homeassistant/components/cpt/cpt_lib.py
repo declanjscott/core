@@ -1,5 +1,12 @@
 """Library to parse payloads from CPT thermometers."""
+from collections.abc import Callable
 from enum import Enum
+
+from bleak import AdvertisementData, BleakClient, BleakGATTCharacteristic
+from bleak.backends.device import BLEDevice
+
+COMBUSTION_MANUFACTURER_ID = 2503
+PROBE_STATUS_CHARACTERISTIC = "00000101-CAAB-3792-3D44-97AE51C1407A"
 
 
 class ProductType(Enum):
@@ -224,7 +231,7 @@ class CPTDevice:
         return CPTDevice(serial, product_type, colour)
 
 
-class CptAdvertisingData:
+class CptAdvertisement:
     """Data advertised from the CPT thermometer."""
 
     def __init__(self, advertisting_data: bytes) -> None:
@@ -245,7 +252,7 @@ class CptAdvertisingData:
             raw_serial_number, raw_product_type, mode_colour_and_id
         )
         self.mode: Mode = Mode.from_raw_data(mode_colour_and_id)
-        self.probe_id = CptAdvertisingData._get_probe_id(mode_colour_and_id)
+        self.probe_id = CptAdvertisement._get_probe_id(mode_colour_and_id)
         self.battery_status: BatteryStatus = BatteryStatus.from_raw_data(
             battery_status_and_virtual_sensors
         )
@@ -467,3 +474,60 @@ class CptProbeStatus:
         ID_MASK = 0x7
         ID_SHIFT = 5
         return (mode_colour_and_id >> ID_SHIFT) & ID_MASK
+
+
+class CPTConnectionManager:
+    """Manages communication with the CPT probe."""
+
+    def _get_is_subscribed(self):
+        return self._maybe_client is not None and self._maybe_client.is_connected
+
+    is_subscribed_to_notifications = property(_get_is_subscribed)
+
+    def __init__(self) -> None:
+        """Construct a CPTConnectionManager."""
+        self._maybe_client: None | BleakClient = None
+        self.is_currently_subscribing = False
+
+    async def maybe_subscribe_to_notifications(
+        self,
+        device_to_subscribe_to: BLEDevice,
+        callback: Callable[[CptProbeStatus], None],
+    ):
+        """Subscribe to notifications for a device if not already subscribed."""
+        if self.is_subscribed_to_notifications or self.is_currently_subscribing:
+            return
+        self.is_currently_subscribing = True
+        self._maybe_client = BleakClient(device_to_subscribe_to)
+        await self._maybe_client.connect()
+
+        def notification_callback(sender: BleakGATTCharacteristic, data: bytearray):
+            probe_status = CptProbeStatus(data)
+            callback(probe_status)
+
+        await self._maybe_client.start_notify(
+            PROBE_STATUS_CHARACTERISTIC, notification_callback
+        )
+
+        self.is_currently_subscribing = False
+
+    def parse_raw_cpt_advertisement(
+        self, advertisement: AdvertisementData
+    ) -> CptAdvertisement:
+        """Extract the CPT advertisement body from a raw advertisement."""
+        raw_advertisement_data = advertisement.manufacturer_data.get(
+            COMBUSTION_MANUFACTURER_ID
+        )
+        if raw_advertisement_data is None:
+            raise (
+                ValueError(
+                    f"Manufacturer data for {COMBUSTION_MANUFACTURER_ID} not present in advertisement"
+                )
+            )
+        parsed = CptAdvertisement(raw_advertisement_data)
+        return parsed
+
+    def maybe_disconnect_from_client(self):
+        """Disconnect the bluetooth client if active."""
+        if self._maybe_client is not None and self._maybe_client.is_connected:
+            self._maybe_client.disconnect()
